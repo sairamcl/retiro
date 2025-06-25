@@ -1,39 +1,29 @@
-# cloudbuild.yaml
+# cloudbuild.yaml (Versión Corregida y Segura)
 
 steps:
 # 1. Construir la imagen del contenedor
-# Este paso usa Docker para construir la imagen basándose en tu Dockerfile.
-# 'gcr.io/$PROJECT_ID/jumpseller-notifier:$COMMIT_SHA' es el nombre de la imagen.
-# - $PROJECT_ID es una variable que Cloud Build rellena con el ID de tu proyecto.
-# - $COMMIT_SHA es el hash del commit de Git, asegurando una etiqueta única para cada build.
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'gcr.io/$electric-attic-463921-q4/jumpseller-notifier:$COMMIT_SHA', '.']
+  args: ['build', '-t', 'gcr.io/$PROJECT_ID/jumpseller-notifier:$COMMIT_SHA', '.']
 
-# 2. Subir la imagen del contenedor a Artifact Registry (o GCR)
-# Este paso "empuja" la imagen que acabamos de construir al registro de contenedores de Google.
+# 2. Subir la imagen a Artifact Registry
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'gcr.io/$electric-attic-463921-q4/jumpseller-notifier:$COMMIT_SHA']
+  args: ['push', 'gcr.io/$PROJECT_ID/jumpseller-notifier:$COMMIT_SHA']
 
-# 3. Desplegar la imagen en Cloud Run
-# Este es el paso final. Usa gcloud para desplegar la nueva imagen en tu servicio de Cloud Run.
+# 3. Desplegar en Cloud Run, inyectando los secretos de forma segura
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   entrypoint: gcloud
   args:
     - 'run'
     - 'deploy'
-    - 'jumpseller-notifier' # El nombre de tu servicio en Cloud Run.
-    - '--image=gcr.io/$electric-attic-463921-q4/jumpseller-notifier:$COMMIT_SHA'
+    - 'jumpseller-notifier' # Nombre de tu servicio en Cloud Run
+    - '--image=gcr.io/$PROJECT_ID/jumpseller-notifier:$COMMIT_SHA'
     - '--platform=managed'
-    - '--region=us-central1' # Asegúrate de que esta sea la región correcta.
-    - '--allow-unauthenticated'
-    - '--quiet' # Evita prompts interactivos durante el despliegue automático.
-    
-    # IMPORTANTE: Reemplaza con tus credenciales.
-    # Es mucho más seguro gestionar esto con Secret Manager, pero para empezar,
-    # puedes pasarlas aquí. Asegúrate de que las mayúsculas coincidan con server.js.
-    - '--set-env-vars=JUMPSELLER_LOGIN=guillermo@saiperfumes.cl,JUMPSELLER_TOKEN=b25f1135a1e6e72c6a98267966c5fb0d'
+    - '--region=us-central1' # ¡Asegúrate de que esta sea tu región!
+    - '--allow-unauthenticated' # Necesario para que Jumpseller pueda llamar al webhook
+    - '--quiet'
+    # Inyecta los secretos como variables de entorno
+    - '--update-secrets=JUMPSELLER_LOGIN=jumpseller-login:latest,JUMPSELLER_TOKEN=jumpseller-token:latest'
 
-# Especificamos la imagen que acabamos de construir para que esté disponible para los siguientes pasos.
+# Especificamos la imagen que construimos
 images:
 - 'gcr.io/$PROJECT_ID/jumpseller-notifier:$COMMIT_SHA'
-
