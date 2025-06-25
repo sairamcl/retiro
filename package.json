@@ -1,7 +1,7 @@
 {
-  "name": "jumpseller-notifier",
+  "name": "jumpseller-webhook-handler",
   "version": "1.0.0",
-  "description": "Servicio para notificar y actualizar pedidos de Jumpseller",
+  "description": "Servicio para recibir y procesar webhooks de Jumpseller de forma segura.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -9,7 +9,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "axios": "^1.6.8",
     "express": "^4.19.2"
   }
 }
