@@ -58,6 +58,8 @@ app.post('/webhook/pedido-creado', async (req, res) => {
     }
 
     console.log('¡Webhook de nuevo pedido recibido!');
+    // LÍNEA AÑADIDA PARA DEPURACIÓN:
+    console.log('Cuerpo del webhook recibido:', JSON.stringify(req.body, null, 2));
     
     // Validar que el cuerpo del webhook y el pedido existen
     if (!req.body || !req.body.order || !req.body.order.id) {
