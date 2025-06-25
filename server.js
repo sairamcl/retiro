@@ -1,111 +1,62 @@
-// server.js
+// server.js (Versión 1 - Recepción Segura de Webhooks)
 
-// -----------------------------------------------------------------------------
-// 1. IMPORTACIÓN DE MÓDULOS
-// -----------------------------------------------------------------------------
 const express = require('express');
-const axios = require('axios');
+const crypto = require('crypto'); // Módulo de Node.js para criptografía
 
-// -----------------------------------------------------------------------------
-// 2. CONFIGURACIÓN
-// -----------------------------------------------------------------------------
 const app = express();
-app.use(express.json());
 
-// Cloud Run proporciona la variable PORT. Usamos 8080 como fallback.
-const PORT = process.env.PORT || 8080; 
+// --- Lectura de Secretos como Variables de Entorno ---
+// Estos valores se inyectan de forma segura desde Secret Manager via cloudbuild.yaml
+const JUMPSELLER_HOOKS_TOKEN = process.env.JUMPSELLER_HOOKS_TOKEN;
+const JUMPSELLER_LOGIN = process.env.JUMPSELLER_LOGIN;
+const JUMPSELLER_TOKEN = process.env.JUMPSELLER_TOKEN;
 
-// --- Lectura de credenciales desde variables de entorno ---
-// Esto es más seguro y flexible para producción.
-// Configuraremos estas variables directamente en Google Cloud Run.
-const JUMPSeller_LOGIN = process.env.JUMPSELLER_LOGIN;
-const JUMPSeller_TOKEN = process.env.JUMPSELLER_TOKEN;
+// Middleware para leer el cuerpo de la petición como JSON.
+// La función 'verify' es crucial para capturar el cuerpo en su estado crudo (raw),
+// lo cual es indispensable para poder verificar la firma HMAC.
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 
-// -----------------------------------------------------------------------------
-// 3. LÓGICA DE NEGOCIO
-// -----------------------------------------------------------------------------
+const PORT = process.env.PORT || 8080;
 
-/**
- * Calcula la fecha de retiro sumando N días hábiles a una fecha dada.
- * No considera feriados, solo fines de semana (sábado y domingo).
- * @param {Date} fechaInicio - La fecha desde la cual empezar a contar.
- * @param {number} diasHabiles - El número de días hábiles a sumar.
- * @returns {Date} La fecha de retiro calculada.
- */
-function calcularFechaRetiro(fechaInicio, diasHabiles = 3) {
-    let diasSumados = 0;
-    const fecha = new Date(fechaInicio);
+// --- ENDPOINT DEL WEBHOOK ---
+// Esta es la URL que configurarás en Jumpseller.
+app.post('/webhook/pedido-creado', (req, res) => {
 
-    while (diasSumados < diasHabiles) {
-        fecha.setDate(fecha.getDate() + 1);
-        const diaDeLaSemana = fecha.getDay(); // 0 = Domingo, ..., 6 = Sábado
-
-        if (diaDeLaSemana !== 0 && diaDeLaSemana !== 6) {
-            diasSumados++;
-        }
-    }
-    return fecha;
-}
-
-// -----------------------------------------------------------------------------
-// 4. ENDPOINT DEL WEBHOOK
-// -----------------------------------------------------------------------------
-app.post('/webhook/pedido-creado', async (req, res) => {
-    // Verificación inicial de credenciales
-    if (!JUMPSeller_LOGIN || !JUMPSeller_TOKEN) {
-        console.error('Error crítico: Las variables de entorno JUMPSELLER_LOGIN y JUMPSELLER_TOKEN no están configuradas.');
+    // Verificación #1: Asegurarnos que el token secreto del servidor está cargado.
+    if (!JUMPSELLER_HOOKS_TOKEN) {
+        console.error('Error Crítico: La variable de entorno JUMPSELLER_HOOKS_TOKEN no está configurada.');
         return res.status(500).send('Error de configuración del servidor.');
     }
 
-    console.log('¡Webhook de nuevo pedido recibido!');
-    // LÍNEA AÑADIDA PARA DEPURACIÓN:
-    console.log('Cuerpo del webhook recibido:', JSON.stringify(req.body, null, 2));
+    // Verificación #2: Seguridad de la firma del Webhook.
+    // Jumpseller firma el cuerpo de la petición con tu 'hooks_token' y lo envía en la cabecera 'X-Jumpseller-Hmac-Sha256'.
+    // Nosotros debemos replicar esa firma y compararla. Si no coinciden, la petición es descartada.
+    const hmacHeader = req.get('X-Jumpseller-Hmac-Sha256');
+    const digest = crypto
+        .createHmac('sha256', JUMPSELLER_HOOKS_TOKEN)
+        .update(req.rawBody)
+        .digest('hex');
+
+    if (hmacHeader !== digest) {
+        console.error('ALERTA DE SEGURIDAD: Se recibió un webhook con una firma HMAC inválida.');
+        return res.status(401).send('Firma inválida.'); // 401 Unauthorized
+    }
+
+    // Si ambas verificaciones pasan, el webhook es auténtico y seguro.
+    const eventType = req.get('X-Jumpseller-Event');
+    console.log(`Webhook verificado y recibido con éxito. Evento: ${eventType}`);
+    console.log('Datos del pedido:', JSON.stringify(req.body, null, 2));
     
-    // Validar que el cuerpo del webhook y el pedido existen
-    if (!req.body || !req.body.order || !req.body.order.id) {
-        console.error('Error: Webhook con formato inválido o sin ID de pedido.');
-        return res.status(400).send('Webhook con formato inválido.');
-    }
-
-    const orderId = req.body.order.id;
-    console.log(`Procesando pedido ID: ${orderId}`);
-
-    try {
-        const fechaPedido = new Date(req.body.order.created_at);
-        const fechaRetiro = calcularFechaRetiro(fechaPedido, 3);
-        const fechaRetiroFormateada = fechaRetiro.toLocaleDateString('es-CL');
-        
-        console.log(`Fecha de retiro calculada: ${fechaRetiroFormateada}`);
-
-        const apiUrl = `https://api.jumpseller.com/v1/orders/${orderId}.json`;
-        
-        const payload = {
-            order: {
-                status: 'listo para retirar en tienda',
-                shipping_status_notes: `Tu pedido estará listo para ser retirado a partir del ${fechaRetiroFormateada}.`
-            }
-        };
-
-        const auth = {
-            username: JUMPSeller_LOGIN,
-            password: JUMPSeller_TOKEN
-        };
-
-        console.log(`Actualizando estado del pedido ${orderId} en Jumpseller...`);
-        await axios.put(apiUrl, payload, { auth });
-        console.log(`¡Éxito! El pedido ${orderId} fue actualizado.`);
-        
-        res.status(200).send('Webhook procesado exitosamente.');
-
-    } catch (error) {
-        console.error(`Error al procesar el pedido ${orderId}:`, error.response ? error.response.data : error.message);
-        res.status(500).send('Error interno del servidor.');
-    }
+    // Aquí, en el futuro, añadiremos la lógica para actualizar el pedido usando JUMPSELLER_LOGIN y JUMPSELLER_TOKEN.
+    
+    res.status(200).send('Webhook recibido y verificado.');
 });
 
-// -----------------------------------------------------------------------------
-// 5. INICIAR SERVIDOR
-// -----------------------------------------------------------------------------
+// --- INICIAR SERVIDOR ---
 app.listen(PORT, () => {
-    console.log(`Servidor de notificaciones escuchando en el puerto ${PORT}`);
+    console.log(`Servidor de webhooks escuchando en el puerto ${PORT}`);
 });
