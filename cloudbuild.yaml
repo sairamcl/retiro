@@ -1,5 +1,3 @@
-# cloudbuild.yaml (Versión Corregida y Segura)
-
 steps:
 # 1. Construir la imagen del contenedor
 - name: 'gcr.io/cloud-builders/docker'
@@ -18,11 +16,11 @@ steps:
     - 'jumpseller-notifier' # Nombre de tu servicio en Cloud Run
     - '--image=gcr.io/$PROJECT_ID/jumpseller-notifier:$COMMIT_SHA'
     - '--platform=managed'
-    - '--region=us-central1' # ¡Asegúrate de que esta sea tu región!
+    - '--region=us-central1' # Asegúrate de que esta sea tu región
     - '--allow-unauthenticated' # Necesario para que Jumpseller pueda llamar al webhook
     - '--quiet'
-    # Inyecta los secretos como variables de entorno
-    - '--update-secrets=JUMPSELLER_LOGIN=jumpseller_login:latest,JUMPSELLER_TOKEN=jumpseller_token:latest'
+    # Inyecta los secretos como variables de entorno en el servicio
+    - '--update-secrets=JUMPSELLER_HOOKS_TOKEN=jumpseller_hooks_token:latest,JUMPSELLER_LOGIN=jumpseller_login:latest,JUMPSELLER_TOKEN=jumpseller_token:latest'
 
 # Especificamos la imagen que construimos
 images:
