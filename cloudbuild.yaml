@@ -3,11 +3,11 @@
 steps:
 # 1. Construir la imagen del contenedor
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'gcr.io/$PROJECT_ID:$COMMIT_SHA', '.']
+  args: ['build', '-t', 'gcr.io/$PROJECT_ID/jumpseller-notifier:$COMMIT_SHA', '.']
 
 # 2. Subir la imagen a Artifact Registry
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'gcr.io/$PROJECT_ID:$COMMIT_SHA']
+  args: ['push', 'gcr.io/$PROJECT_ID/jumpseller-notifier:$COMMIT_SHA']
 
 # 3. Desplegar en Cloud Run, inyectando los secretos de forma segura
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -16,7 +16,7 @@ steps:
     - 'run'
     - 'deploy'
     - 'jumpseller-notifier' # Nombre de tu servicio en Cloud Run
-    - '--image=gcr.io/$PROJECT_ID:$COMMIT_SHA'
+    - '--image=gcr.io/$PROJECT_ID/jumpseller-notifier:$COMMIT_SHA'
     - '--platform=managed'
     - '--region=us-central1' # ¡Asegúrate de que esta sea tu región!
     - '--allow-unauthenticated' # Necesario para que Jumpseller pueda llamar al webhook
