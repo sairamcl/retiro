@@ -2,20 +2,14 @@
 
 steps:
 # 1. Construir la imagen del contenedor
-# Este paso usa Docker para construir la imagen basándose en tu Dockerfile.
-# 'gcr.io/$PROJECT_ID/jumpseller-notifier:$COMMIT_SHA' es el nombre de la imagen.
-# - $PROJECT_ID es una variable que Cloud Build rellena con el ID de tu proyecto.
-# - $COMMIT_SHA es el hash del commit de Git, asegurando una etiqueta única para cada build.
 - name: 'gcr.io/cloud-builders/docker'
   args: ['build', '-t', 'gcr.io/$PROJECT_ID/jumpseller-notifier:$COMMIT_SHA', '.']
 
-# 2. Subir la imagen del contenedor a Artifact Registry (o GCR)
-# Este paso "empuja" la imagen que acabamos de construir al registro de contenedores de Google.
+# 2. Subir la imagen del contenedor a Artifact Registry
 - name: 'gcr.io/cloud-builders/docker'
   args: ['push', 'gcr.io/$PROJECT_ID/jumpseller-notifier:$COMMIT_SHA']
 
 # 3. Desplegar la imagen en Cloud Run
-# Este es el paso final. Usa gcloud para desplegar la nueva imagen en tu servicio de Cloud Run.
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   entrypoint: gcloud
   args:
@@ -28,12 +22,10 @@ steps:
     - '--allow-unauthenticated'
     - '--quiet' # Evita prompts interactivos durante el despliegue automático.
     
-    # IMPORTANTE: Reemplaza con tus credenciales.
-    # Es mucho más seguro gestionar esto con Secret Manager, pero para empezar,
-    # puedes pasarlas aquí. Asegúrate de que las mayúsculas coincidan con server.js.
-    - '--set-env-vars=JUMPSELLER_LOGIN=[TU_LOGIN_API],JUMPSELLER_TOKEN=[TU_TOKEN_API]'
+    # --- IMPORTANTE ---
+    # He añadido tu token. Ahora solo necesitas reemplazar el login.
+    - '--set-env-vars=JUMPSELLER_LOGIN=guillermo@saiperfumes.cl,JUMPSELLER_TOKEN=b25f1135a1e6e72c6a98267966c5fb0d'
 
-# Especificamos la imagen que acabamos de construir para que esté disponible para los siguientes pasos.
+# Especificamos la imagen que acabamos de construir para que esté disponible.
 images:
 - 'gcr.io/$PROJECT_ID/jumpseller-notifier:$COMMIT_SHA'
-
