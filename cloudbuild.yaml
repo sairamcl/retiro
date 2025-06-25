@@ -22,7 +22,7 @@ steps:
     - '--allow-unauthenticated' # Necesario para que Jumpseller pueda llamar al webhook
     - '--quiet'
     # Inyecta los secretos como variables de entorno
-    - '--update-secrets=JUMPSELLER_LOGIN=jumpseller-login:latest,JUMPSELLER_TOKEN=jumpseller-token:latest'
+    - '--update-secrets=JUMPSELLER_LOGIN=jumpseller_login:latest,JUMPSELLER_TOKEN=jumpseller_token:latest'
 
 # Especificamos la imagen que construimos
 images:
